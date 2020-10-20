@@ -76,6 +76,17 @@ export class FlatFile extends StorageAPI.Async {
   }
 
   /**
+   * @deprecated
+   * @param matchID
+   * @param opts
+   */
+  async createGame(
+    matchID: string,
+    opts: StorageAPI.CreateGameOpts
+  ): Promise<void> {
+    await this.createMatch(matchID, opts);
+  }
+  /**
    * Create new match.
    *
    * @param matchID
@@ -151,6 +162,14 @@ export class FlatFile extends StorageAPI.Async {
     await this.removeItem(InitialStateKey(id));
     await this.removeItem(LogKey(id));
     await this.removeItem(MetadataKey(id));
+  }
+
+  /**
+   * @deprecated
+   * @param opts
+   */
+  async listGames(opts?: StorageAPI.ListGamesOpts): Promise<string[]> {
+    return await this.listMatches(opts);
   }
 
   /**
