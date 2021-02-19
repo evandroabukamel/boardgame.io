@@ -1,4 +1,4 @@
-import { LobbyAPI } from '../types';
+import type { LobbyAPI } from '../types';
 
 const assertString = (str: unknown, label: string) => {
   if (!str || typeof str !== 'string') {
@@ -17,12 +17,21 @@ const validateBody = (
     const type = schema[key];
     const received = body[key];
     if (typeof received !== type) {
-      throw new Error(
+      throw new TypeError(
         `Expected body.${key} to be of type ${type}, got “${received}”.`
       );
     }
   }
 };
+
+export class LobbyClientError extends Error {
+  readonly details: any;
+
+  constructor(message: string, details: any) {
+    super(message);
+    this.details = details;
+  }
+}
 
 /**
  * Create a boardgame.io Lobby API client.
@@ -38,14 +47,27 @@ export class LobbyClient {
 
   private async request(route: string, init?: RequestInit) {
     const response = await fetch(this.server + route, init);
-    if (!response.ok) throw new Error(`HTTP status ${response.status}`);
+
+    if (!response.ok) {
+      let details: any;
+
+      try {
+        details = await response.json();
+      } catch {
+        try {
+          details = await response.text();
+        } catch (error) {
+          details = error.message;
+        }
+      }
+
+      throw new LobbyClientError(`HTTP status ${response.status}`, details);
+    }
+
     return response.json();
   }
 
-  private async post(
-    route: string,
-    opts: { body?: object; init?: RequestInit }
-  ) {
+  private async post(route: string, opts: { body?: any; init?: RequestInit }) {
     let init: RequestInit = {
       method: 'post',
       body: JSON.stringify(opts.body),
@@ -122,7 +144,7 @@ export class LobbyClient {
       if (isGameover !== undefined) queries.push(`isGameover=${isGameover}`);
       if (updatedBefore) queries.push(`updatedBefore=${updatedBefore}`);
       if (updatedAfter) queries.push(`updatedAfter=${updatedAfter}`);
-      if (queries.length) query = '?' + queries.join('&');
+      if (queries.length > 0) query = '?' + queries.join('&');
     }
     return this.request(`/games/${gameName}${query}`, init);
   }

@@ -6,10 +6,11 @@
  * https://opensource.org/licenses/MIT.
  */
 
-import { TransportAPI, SocketIO, SocketOpts } from './socketio';
+import type { SocketOpts } from './socketio';
+import { TransportAPI, SocketIO } from './socketio';
 import { Auth } from '../auth';
 import { ProcessGameConfig } from '../../core/game';
-import { Master } from '../../master/master';
+import type { Master } from '../../master/master';
 
 type SyncArgs = Parameters<Master['onSync']>;
 
@@ -51,7 +52,7 @@ jest.mock('../../master/master', () => {
 jest.mock('koa-socket-2', () => {
   class MockSocket {
     id: string;
-    callbacks: {};
+    callbacks: Record<string, (...args: any[]) => any>;
     emit: jest.Mock<any, any>;
     broadcast: { emit: jest.Mock<any, any> };
 
@@ -133,7 +134,7 @@ describe('socketAdapter', () => {
   const app: any = { context: { auth } };
   const games = [ProcessGameConfig({ seed: 0 })];
 
-  let socketAdapter = jest.fn();
+  const socketAdapter = jest.fn();
 
   beforeEach(() => {
     const transport = new SocketIOTestAdapter({ socketAdapter });
@@ -184,7 +185,7 @@ describe('TransportAPI', () => {
   });
 
   test('sendAll - function', () => {
-    api.sendAll(playerID => ({ type: 'A', args: [playerID] }));
+    api.sendAll((playerID) => ({ type: 'A', args: [playerID] }));
     expect(io.socket.emit).toHaveBeenCalledWith('A', '0');
     expect(io.socket.emit).toHaveBeenCalledWith('A', '1');
   });
@@ -227,14 +228,6 @@ describe('connect / disconnect', () => {
   let roomInfo;
   let io;
 
-  const toObj = m => {
-    let o = {};
-    m.forEach((value, key) => {
-      o[key] = value;
-    });
-    return o;
-  };
-
   beforeAll(() => {
     clientInfo = new Map();
     roomInfo = new Map();
@@ -251,11 +244,11 @@ describe('connect / disconnect', () => {
     const args1: SyncArgs = ['matchID', '1', undefined, 2];
     await io.socket.receive('sync', ...args1);
 
-    expect(toObj(clientInfo)['0']).toMatchObject({
+    expect(clientInfo.get('0')).toMatchObject({
       matchID: 'matchID',
       playerID: '0',
     });
-    expect(toObj(clientInfo)['1']).toMatchObject({
+    expect(clientInfo.get('1')).toMatchObject({
       matchID: 'matchID',
       playerID: '1',
     });
@@ -265,30 +258,30 @@ describe('connect / disconnect', () => {
     io.socket.id = '0';
     await io.socket.receive('disconnect');
 
-    expect(toObj(clientInfo)['0']).toBeUndefined();
-    expect(toObj(clientInfo)['1']).toMatchObject({
+    expect(clientInfo.get('0')).toBeUndefined();
+    expect(clientInfo.get('1')).toMatchObject({
       matchID: 'matchID',
       playerID: '1',
     });
-    expect(toObj(roomInfo.get('matchID'))).toEqual({ '1': '1' });
+    expect([...roomInfo.get('matchID')]).toEqual(['1']);
   });
 
   test('unknown player disconnects', async () => {
     io.socket.id = 'unknown';
     await io.socket.receive('disconnect');
 
-    expect(toObj(clientInfo)['0']).toBeUndefined();
-    expect(toObj(clientInfo)['1']).toMatchObject({
+    expect(clientInfo.get('0')).toBeUndefined();
+    expect(clientInfo.get('1')).toMatchObject({
       matchID: 'matchID',
       playerID: '1',
     });
-    expect(toObj(roomInfo.get('matchID'))).toEqual({ '1': '1' });
+    expect([...roomInfo.get('matchID')]).toEqual(['1']);
   });
 
   test('1 disconnects', async () => {
     io.socket.id = '1';
     await io.socket.receive('disconnect');
-    expect(toObj(clientInfo)).toEqual({});
-    expect(toObj(roomInfo.get('matchID'))).toEqual({});
+    expect([...clientInfo.keys()]).toHaveLength(0);
+    expect(roomInfo.get('matchID')).toBeUndefined();
   });
 });
